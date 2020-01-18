@@ -66,9 +66,16 @@ done
 else
 #DOWNLOAD, UNZIP AND IMPORT THE VECTORS
 #WE IMPORT FIRST AS SPATIALITE BECAUSE WE WANT THE COLUMN NAMES LAUNDERED, SOMETHING THAT IMPORTING DIRECTLY INTO GPKG DOES NOT
+if [[ $zip == "http://mapas.dgterritorio.pt/DGT-ATOM-download/COS_Final/COS2018_v1/COS2018_v1.zip" ]]; then
+echo "Skipping the full COS2018 map, instead import the split version"
+else
 ogr2ogr -q -f SQlite -dsco SPATIALITE=YES /tmp/atom_dgt/atom_dgt_temp.sqlite $append /vsizip//vsicurl/$zip -lco SPATIAL_INDEX=YES -lco GEOMETRY_NAME=geom -a_srs EPSG:$crs $nome_camada -nlt PROMOTE_TO_MULTI
+fi
 ogr2ogr -q -f GPKG atom_dgt.gpkg -append /tmp/atom_dgt/atom_dgt_temp.sqlite $si $gn -a_srs EPSG:$crs $nome_camada -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geom -lco SPATIAL_INDEX=YES -lco GEOMETRY_NAME=geom &> /dev/null
-rm /tmp/atom_dgt/atom_dgt_temp.sqlite
+FILE=/tmp/atom_dgt/atom_dgt_temp.sqlite
+if [[ -f "$FILE" ]]; then
+    rm /tmp/atom_dgt/atom_dgt_temp.sqlite
+fi
 fi
 fi
 
