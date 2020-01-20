@@ -1,0 +1,29 @@
+CREATE OR REPLACE FUNCTION geom_from_odk_to_postgis(GEOSHAPE TEXT)
+RETURNS geometry(GEOMETRY,4326) AS
+$$
+WITH geom_from_odk AS 
+(
+        SELECT regexp_split_to_array(btrim(COALESCE(
+        GEOSHAPE),';'),';\s*') as geom_odk
+),
+node_array AS (
+        SELECT geom_odk, unnest(geom_odk) AS unnest,
+        array_length(geom_odk,1) AS nb_points,
+        generate_series(1, array_length(geom_odk, 1)) AS ordre,
+        split_part(unnest(geom_odk), ' '::text, 1)::numeric AS LAT,
+        split_part(unnest(geom_odk), ' '::text, 2)::numeric AS long
+        FROM geom_from_odk
+)--, geom AS (
+SELECT 
+CASE
+WHEN node_array.nb_points = 1 THEN st_union(st_setsrid(st_makepoint(node_array.long::double precision, node_array.lat::double precision), 4326))
+WHEN st_isclosed(st_makeline(array_agg(st_setsrid(st_makepoint(node_array.long::double precision, node_array.lat::double precision), 4326) ORDER BY node_array.ordre))) IS FALSE THEN st_makeline(array_agg(st_setsrid(st_makepoint(node_array.long::double precision, node_array.lat::double precision), 4326) ORDER BY node_array.ordre))
+WHEN st_isclosed(st_makeline(array_agg(st_setsrid(st_makepoint(node_array.long::double precision, node_array.lat::double precision), 4326) ORDER BY node_array.ordre))) AND node_array.nb_points > 3 THEN st_makepolygon(st_makeline(array_agg(st_setsrid(st_makepoint(node_array.long::double precision, node_array.lat::double precision), 4326) ORDER BY node_array.ordre)))
+-- ELSE the polygon is invalid because made of 3 points, 1st and 3rd are the same so we create a linestring
+ELSE st_makeline(array_agg(st_setsrid(st_makepoint(node_array.long::double precision, node_array.lat::double precision), 4326) ORDER BY node_array.ordre))
+END AS geom
+FROM node_array
+GROUP BY node_array.nb_points;
+$$
+  LANGUAGE sql VOLATILE
+  COST 100;
